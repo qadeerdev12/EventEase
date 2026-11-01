@@ -7,17 +7,69 @@
 <h1>Upcoming Events</h1>
 <p class="text-muted">Browse our upcoming corporate and social events.</p>
 
-<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4">
-    @foreach (var ev in _events)
-    {
-        <div class="col" @key="ev.Id">
-            <EventCard Event="ev" />
-        </div>
-    }
+<div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+    <label for="event-search" class="visually-hidden">Search events</label>
+    <input id="event-search" type="search" class="form-control" style="max-width: 22rem"
+           placeholder="Search by name or location"
+           @bind="SearchText" @bind:event="oninput" />
+    <span class="text-muted small" role="status">
+        Showing @_filtered.Count of @_allEvents.Count events
+    </span>
 </div>
 
-@code {
-    private IReadOnlyList<Event> _events = [];
+@if (_filtered.Count == 0)
+{
+    <p>No events match your search.</p>
+}
+else
+{
+    @* Virtualize only renders the rows currently on screen (plus a small buffer),
+       so the page stays fast with thousands of events. Each row holds up to 3 cards.
+       MaxItemCount caps how many rows are rendered at once, even on very tall screens. *@
+    <Virtualize Items="_rows" Context="row" ItemSize="190" OverscanCount="4" MaxItemCount="30">
+        <div class="row row-cols-1 row-cols-md-3 g-4 mb-4" @key="row[0].Id">
+            @foreach (var ev in row)
+            {
+                <div class="col" @key="ev.Id">
+                    <EventCard Event="ev" />
+                </div>
+            }
+        </div>
+    </Virtualize>
+}
 
-    protected override void OnInitialized() => _events = EventService.GetAll();
+@code {
+    private const int CardsPerRow = 3;
+
+    private IReadOnlyList<Event> _allEvents = [];
+    private List<Event> _filtered = [];
+    private List<Event[]> _rows = [];
+    private string _searchText = string.Empty;
+
+    private string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            _searchText = value ?? string.Empty;
+            ApplyFilter();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        _allEvents = EventService.GetAll();
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        var term = _searchText.Trim();
+        _filtered = term.Length == 0
+            ? _allEvents.ToList()
+            : _allEvents.Where(e => e.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
+                                 || e.Location.Contains(term, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+        _rows = _filtered.Chunk(CardsPerRow).ToList();
+    }
 }

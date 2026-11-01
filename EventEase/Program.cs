@@ -3,7 +3,9 @@ using EventEase.Components;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddSingleton<EventEase.Services.EventService>();
+// Set EventEase:GeneratedEventCount (e.g. 5000) to load extra sample events for performance testing.
+builder.Services.AddSingleton(_ => new EventEase.Services.EventService(
+    builder.Configuration.GetValue("EventEase:GeneratedEventCount", 0)));
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -27,3 +29,6 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+// Exposes Program to the integration tests in EventEase.Tests.
+public partial class Program;

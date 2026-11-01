@@ -1,28 +1,29 @@
 @page "/events/{Id:int}"
 @inject EventService EventService
+@inject NavigationManager Navigation
 
-<PageTitle>@(_event?.Name ?? "Event not found") · EventEase</PageTitle>
-
-<nav aria-label="breadcrumb">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="events">Events</a></li>
-        <li class="breadcrumb-item active" aria-current="page">@(_event?.Name ?? "Not found")</li>
-    </ol>
-</nav>
-
-@if (_event is null)
+@if (_event is not null)
 {
-    <h1>Event not found</h1>
-    <p>We couldn't find an event with ID @Id. <a href="events">Back to all events</a>.</p>
-}
-else
-{
+    <PageTitle>@_event.Name · EventEase</PageTitle>
+
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="events">Events</a></li>
+            <li class="breadcrumb-item active" aria-current="page">@_event.Name</li>
+        </ol>
+    </nav>
+
     <h1>@_event.Name</h1>
+
+    @if (_saved)
+    {
+        <div class="alert alert-success py-2" role="status">Event updated.</div>
+    }
 
     <div class="row g-4">
         <div class="col-md-5">
-            @* Two-way binding: edits made inside the card flow back to _event and the summary below. *@
-            <EventCard @bind-Event="_event" ShowActions="false" AllowEdit="true" />
+            @* Two-way binding: the card only raises EventChanged with validated data, which we then save. *@
+            <EventCard @bind-Event="_event" @bind-Event:after="SaveEvent" ShowActions="false" AllowEdit="true" />
         </div>
         <div class="col-md-7">
             <p>@_event.Description</p>
@@ -42,6 +43,25 @@ else
     public int Id { get; set; }
 
     private Event? _event;
+    private bool _saved;
 
-    protected override void OnParametersSet() => _event = EventService.GetById(Id);
+    protected override void OnParametersSet()
+    {
+        _saved = false;
+        _event = EventService.GetById(Id);
+        if (_event is null)
+        {
+            // Renders the app's Not Found page and returns HTTP 404 instead of an empty page.
+            Navigation.NotFound();
+        }
+    }
+
+    private void SaveEvent()
+    {
+        if (_event is null) return;
+
+        _saved = EventService.Update(_event);
+        // Reload the stored event so registrations and seat counts stay accurate.
+        _event = EventService.GetById(Id);
+    }
 }

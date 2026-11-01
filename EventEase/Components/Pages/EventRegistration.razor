@@ -1,5 +1,6 @@
 @page "/events/{Id:int}/register"
 @inject EventService EventService
+@inject NavigationManager Navigation
 
 <PageTitle>Register · EventEase</PageTitle>
 
@@ -16,8 +17,7 @@
 
 @if (_event is null)
 {
-    <h1>Event not found</h1>
-    <p><a href="events">Back to all events</a></p>
+    @* OnParametersSet calls Navigation.NotFound(), so nothing renders here. *@
 }
 else if (_confirmed)
 {
@@ -71,11 +71,20 @@ else
     private bool _confirmed;
     private string? _error;
 
-    protected override void OnParametersSet() => _event = EventService.GetById(Id);
+    protected override void OnParametersSet()
+    {
+        _event = EventService.GetById(Id);
+        if (_event is null)
+        {
+            Navigation.NotFound();
+        }
+    }
 
     private void HandleValidSubmit()
     {
         _error = null;
+        _model.FullName = _model.FullName.Trim();
+        _model.Email = _model.Email.Trim();
         if (EventService.Register(Id, _model))
         {
             _confirmed = true;

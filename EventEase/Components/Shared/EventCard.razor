@@ -1,53 +1,74 @@
-@* Reusable card for a single event. Supports two-way binding via @bind-Event. *@
+@* Reusable card for a single event. Supports two-way binding via @bind-Event.
+   Edits go into a validated draft; EventChanged only fires with valid data. *@
 
-<div class="card event-card h-100 shadow-sm">
-    <div class="card-body">
-        @if (_isEditing)
-        {
-            <div class="mb-2">
-                <label class="form-label small">Event name</label>
-                <input class="form-control form-control-sm" @bind="Event.Name" @bind:event="oninput" @bind:after="NotifyChanged" />
-            </div>
-            <div class="mb-2">
-                <label class="form-label small">Date</label>
-                <input type="datetime-local" class="form-control form-control-sm" @bind="Event.Date" @bind:after="NotifyChanged" />
-            </div>
-            <div class="mb-3">
-                <label class="form-label small">Location</label>
-                <input class="form-control form-control-sm" @bind="Event.Location" @bind:event="oninput" @bind:after="NotifyChanged" />
-            </div>
-            <button class="btn btn-sm btn-success" @onclick="() => _isEditing = false">Done</button>
-        }
-        else
-        {
-            <h5 class="card-title">@Event.Name</h5>
-            <p class="card-text mb-1">
-                📅 @Event.Date.ToString("dddd, MMM d, yyyy 'at' h:mm tt")
-            </p>
-            <p class="card-text text-muted">
-                📍 @Event.Location
-            </p>
-            @if (AllowEdit)
+@if (Event is null)
+{
+    <div class="card event-card h-100 border-warning">
+        <div class="card-body text-muted">Event details are unavailable.</div>
+    </div>
+}
+else
+{
+    <div class="card event-card h-100 shadow-sm">
+        <div class="card-body">
+            @if (_draft is not null)
             {
-                <button class="btn btn-sm btn-outline-secondary" @onclick="() => _isEditing = true">Edit</button>
+                <EditForm Model="_draft" OnValidSubmit="SaveAsync" FormName="@($"edit-event-{Event.Id}")">
+                    <DataAnnotationsValidator />
+
+                    <div class="mb-2">
+                        <label for="@($"name-{Event.Id}")" class="form-label small">Event name</label>
+                        <InputText id="@($"name-{Event.Id}")" class="form-control form-control-sm" @bind-Value="_draft.Name" />
+                        <ValidationMessage For="() => _draft.Name" />
+                    </div>
+                    <div class="mb-2">
+                        <label for="@($"date-{Event.Id}")" class="form-label small">Date</label>
+                        <InputDate id="@($"date-{Event.Id}")" Type="InputDateType.DateTimeLocal" class="form-control form-control-sm"
+                                   @bind-Value="_draft.Date" ParsingErrorMessage="Please enter a valid date and time." />
+                        <ValidationMessage For="() => _draft.Date" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="@($"location-{Event.Id}")" class="form-label small">Location</label>
+                        <InputText id="@($"location-{Event.Id}")" class="form-control form-control-sm" @bind-Value="_draft.Location" />
+                        <ValidationMessage For="() => _draft.Location" />
+                    </div>
+
+                    <button type="submit" class="btn btn-sm btn-success">Save</button>
+                    <button type="button" class="btn btn-sm btn-link" @onclick="CancelEdit">Cancel</button>
+                </EditForm>
             }
+            else
+            {
+                <h5 class="card-title">@DisplayOrFallback(Event.Name, "Untitled event")</h5>
+                <p class="card-text mb-1">
+                    📅 @(Event.Date == default ? "Date to be announced" : Event.Date.ToString("dddd, MMM d, yyyy 'at' h:mm tt"))
+                </p>
+                <p class="card-text text-muted">
+                    📍 @DisplayOrFallback(Event.Location, "Location to be announced")
+                </p>
+                @if (AllowEdit)
+                {
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="StartEdit">Edit</button>
+                }
+            }
+        </div>
+
+        @if (ShowActions && _draft is null)
+        {
+            <div class="card-footer bg-transparent d-flex gap-2">
+                <a class="btn btn-sm btn-outline-primary" href="@($"events/{Event.Id}")">Details</a>
+                <a class="btn btn-sm btn-primary" href="@($"events/{Event.Id}/register")">Register</a>
+            </div>
         }
     </div>
-
-    @if (ShowActions && !_isEditing)
-    {
-        <div class="card-footer bg-transparent d-flex gap-2">
-            <a class="btn btn-sm btn-outline-primary" href="@($"events/{Event.Id}")">Details</a>
-            <a class="btn btn-sm btn-primary" href="@($"events/{Event.Id}/register")">Register</a>
-        </div>
-    }
-</div>
+}
 
 @code {
-    private bool _isEditing;
+    // Non-null while the card is in edit mode.
+    private EventEditModel? _draft;
 
     [Parameter, EditorRequired]
-    public Event Event { get; set; } = default!;
+    public Event? Event { get; set; }
 
     [Parameter]
     public EventCallback<Event> EventChanged { get; set; }
@@ -58,5 +79,24 @@
     [Parameter]
     public bool AllowEdit { get; set; }
 
-    private Task NotifyChanged() => EventChanged.InvokeAsync(Event);
+    private void StartEdit() => _draft = EventEditModel.From(Event!);
+
+    private void CancelEdit() => _draft = null;
+
+    private async Task SaveAsync()
+    {
+        // Hand the parent a copy so the shared event is only changed through EventChanged.
+        var updated = new Event
+        {
+            Id = Event!.Id,
+            Description = Event.Description,
+            Capacity = Event.Capacity,
+        };
+        _draft!.ApplyTo(updated);
+        _draft = null;
+        await EventChanged.InvokeAsync(updated);
+    }
+
+    private static string DisplayOrFallback(string? value, string fallback) =>
+        string.IsNullOrWhiteSpace(value) ? fallback : value;
 }
