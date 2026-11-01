@@ -1,0 +1,123 @@
+@page "/events/{Id:int}/attendance"
+@implements IDisposable
+@inject EventService EventService
+@inject NavigationManager Navigation
+
+@if (_event is not null)
+{
+    <PageTitle>Attendance: @_event.Name · EventEase</PageTitle>
+
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="attendance">Attendance</a></li>
+            <li class="breadcrumb-item active" aria-current="page">@_event.Name</li>
+        </ol>
+    </nav>
+
+    <h1>@_event.Name</h1>
+    <p class="text-muted">@_event.Date.ToString("f") · @_event.Location</p>
+
+    <p role="status">
+        <strong>@_checkedInSeats</strong> of <strong>@_bookedSeats</strong> booked seats checked in
+        (@_registrations.Count(r => r.IsCheckedIn) of @_registrations.Count registrations).
+        Capacity @_event.Capacity.
+    </p>
+
+    @if (_registrations.Count == 0)
+    {
+        <p>No one has registered yet. <a href="@($"events/{_event.Id}/register")">Share the registration page</a>.</p>
+    }
+    else
+    {
+        <div class="table-responsive position-relative">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th scope="col">Attendee</th>
+                        <th scope="col">Email</th>
+                        <th scope="col" class="text-end">Seats</th>
+                        <th scope="col">Status</th>
+                        <th scope="col"><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in _registrations)
+                    {
+                        <tr @key="r.Id">
+                            <td>@r.FullName</td>
+                            <td>@r.Email</td>
+                            <td class="text-end">@r.Seats</td>
+                            <td>
+                                @if (r.IsCheckedIn)
+                                {
+                                    <span class="badge text-bg-success">Checked in @r.CheckedInAt!.Value.ToString("t")</span>
+                                }
+                                else
+                                {
+                                    <span class="badge text-bg-secondary">Not checked in</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                @if (r.IsCheckedIn)
+                                {
+                                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => SetCheckedIn(r, false)"
+                                            aria-label="@($"Undo check-in for {r.FullName}")">Undo</button>
+                                }
+                                else
+                                {
+                                    <button class="btn btn-sm btn-success" @onclick="() => SetCheckedIn(r, true)"
+                                            aria-label="@($"Check in {r.FullName}")">Check in</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Event? _event;
+    private IReadOnlyList<Registration> _registrations = [];
+    private int _bookedSeats;
+    private int _checkedInSeats;
+
+    protected override void OnInitialized() => EventService.Changed += OnDataChanged;
+
+    protected override void OnParametersSet()
+    {
+        _event = EventService.GetById(Id);
+        if (_event is null)
+        {
+            Navigation.NotFound();
+            return;
+        }
+        Load();
+    }
+
+    private void Load()
+    {
+        _registrations = EventService.GetRegistrations(Id);
+        _bookedSeats = _registrations.Sum(r => r.Seats);
+        _checkedInSeats = _registrations.Where(r => r.IsCheckedIn).Sum(r => r.Seats);
+    }
+
+    private void SetCheckedIn(Registration registration, bool checkedIn)
+    {
+        EventService.SetCheckedIn(Id, registration.Id, checkedIn);
+        Load();
+    }
+
+    private void OnDataChanged() => InvokeAsync(() =>
+    {
+        if (_event is null) return;
+        Load();
+        StateHasChanged();
+    });
+
+    public void Dispose() => EventService.Changed -= OnDataChanged;
+}

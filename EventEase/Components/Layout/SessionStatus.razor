@@ -1,0 +1,44 @@
+@implements IDisposable
+@inject UserSession Session
+@inject NavigationManager Navigation
+
+@* Shows who the current visitor is. Restores the saved session once the page is interactive. *@
+<div class="d-flex flex-wrap align-items-center justify-content-end column-gap-3 small" aria-live="polite">
+    @if (!Session.IsLoaded)
+    {
+        <span class="text-muted">Loading session…</span>
+    }
+    else if (Session.IsIdentified)
+    {
+        <span>Signed in as <strong>@Session.Name</strong></span>
+        <a href="my-events">My events</a>
+        <button type="button" class="btn btn-link btn-sm p-0" @onclick="SignOut">Sign out</button>
+    }
+    else
+    {
+        <span class="text-muted">Browsing as guest</span>
+        <a href="my-events">Find my registrations</a>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized() => Session.Changed += OnSessionChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Session.EnsureLoadedAsync();
+        }
+    }
+
+    private async Task SignOut()
+    {
+        await Session.SignOutAsync();
+        Navigation.NavigateTo("events");
+    }
+
+    private void OnSessionChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Session.Changed -= OnSessionChanged;
+}

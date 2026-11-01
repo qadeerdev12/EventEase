@@ -1,0 +1,134 @@
+@page "/my-events"
+@using System.ComponentModel.DataAnnotations
+@implements IDisposable
+@inject EventService EventService
+@inject UserSession Session
+
+<PageTitle>My events · EventEase</PageTitle>
+
+<h1>My events</h1>
+
+@if (!Session.IsLoaded)
+{
+    <p class="text-muted">Loading your session…</p>
+}
+else if (!Session.IsIdentified)
+{
+    <p>Enter the name and email you registered with to see your bookings. We'll remember you while this tab is open.</p>
+
+    <EditForm Model="_lookup" OnValidSubmit="Identify" FormName="lookup" class="col-md-6">
+        <DataAnnotationsValidator />
+        <div class="mb-3">
+            <label for="lookup-name" class="form-label">Name</label>
+            <InputText id="lookup-name" class="form-control" autocomplete="name" @bind-Value="_lookup.FullName" />
+            <ValidationMessage For="() => _lookup.FullName" />
+        </div>
+        <div class="mb-3">
+            <label for="lookup-email" class="form-label">Email</label>
+            <InputText id="lookup-email" type="email" class="form-control" autocomplete="email" @bind-Value="_lookup.Email" />
+            <ValidationMessage For="() => _lookup.Email" />
+        </div>
+        <button type="submit" class="btn btn-primary">Continue</button>
+    </EditForm>
+}
+else
+{
+    <p class="text-muted">Signed in as @Session.Name (@Session.Email) since @Session.StartedAt.ToString("t").</p>
+
+    <h2 class="h4 mt-4">Registrations</h2>
+    @if (_registrations.Count == 0)
+    {
+        <p>You haven't registered for any events yet. <a href="events">Browse events</a>.</p>
+    }
+    else
+    {
+        <ul class="list-group mb-4">
+            @foreach (var item in _registrations)
+            {
+                <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2" @key="item.Registration.Id">
+                    <div>
+                        <a href="@($"events/{item.Event.Id}")" class="fw-semibold">@item.Event.Name</a>
+                        <div class="small text-muted">
+                            @item.Event.Date.ToString("f") · @item.Event.Location · @item.Registration.Seats seat(s)
+                        </div>
+                    </div>
+                    @if (item.Registration.IsCheckedIn)
+                    {
+                        <span class="badge text-bg-success">Attended</span>
+                    }
+                    else if (item.Event.Date < DateTime.Now)
+                    {
+                        <span class="badge text-bg-secondary">Missed</span>
+                    }
+                    else
+                    {
+                        <span class="badge text-bg-primary">Upcoming</span>
+                    }
+                </li>
+            }
+        </ul>
+    }
+
+    @if (_recent.Count > 0)
+    {
+        <h2 class="h4">Recently viewed</h2>
+        <ul>
+            @foreach (var ev in _recent)
+            {
+                <li @key="ev.Id"><a href="@($"events/{ev.Id}")">@ev.Name</a> <span class="text-muted small">@ev.Date.ToString("MMM d")</span></li>
+            }
+        </ul>
+    }
+}
+
+@code {
+    private readonly LookupModel _lookup = new();
+    private IReadOnlyList<UserRegistration> _registrations = [];
+    private List<Event> _recent = [];
+
+    protected override void OnInitialized()
+    {
+        Session.Changed += OnSessionChanged;
+        Load();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Session.EnsureLoadedAsync();
+        }
+    }
+
+    private async Task Identify() => await Session.IdentifyAsync(_lookup.FullName, _lookup.Email);
+
+    private void Load()
+    {
+        _registrations = Session.IsIdentified ? EventService.GetRegistrationsForEmail(Session.Email!) : [];
+        _recent = Session.RecentEventIds
+            .Select(EventService.GetById)
+            .OfType<Event>()
+            .ToList();
+    }
+
+    private void OnSessionChanged() => InvokeAsync(() =>
+    {
+        Load();
+        StateHasChanged();
+    });
+
+    public void Dispose() => Session.Changed -= OnSessionChanged;
+
+    // Same name and email rules as the registration form.
+    private class LookupModel
+    {
+        [Required(ErrorMessage = "Please enter your name.")]
+        [StringLength(80, MinimumLength = 2, ErrorMessage = "Name must be 2 to 80 characters.")]
+        [RegularExpression(Registration.NamePattern, ErrorMessage = Registration.NameError)]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Please enter your email.")]
+        [RegularExpression(Registration.EmailPattern, ErrorMessage = Registration.EmailError)]
+        public string Email { get; set; } = string.Empty;
+    }
+}

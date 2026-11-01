@@ -21,5 +21,5 @@ public class Event
 
     public List<Registration> Registrations { get; } = new();
 
-    public int SeatsLeft => Capacity - Registrations.Sum(r => r.Guests);
+    public int SeatsLeft => Capacity - Registrations.Sum(r => r.Seats);
 }

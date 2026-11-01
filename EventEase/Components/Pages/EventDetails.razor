@@ -1,6 +1,7 @@
 @page "/events/{Id:int}"
 @inject EventService EventService
 @inject NavigationManager Navigation
+@inject UserSession Session
 
 @if (_event is not null)
 {
@@ -33,6 +34,7 @@
                 <li><strong>Seats left:</strong> @_event.SeatsLeft of @_event.Capacity</li>
             </ul>
             <a class="btn btn-primary" href="@($"events/{_event.Id}/register")">Register for this event</a>
+            <a class="btn btn-outline-secondary" href="@($"events/{_event.Id}/attendance")">Attendance</a>
             <a class="btn btn-link" href="events">Back to events</a>
         </div>
     </div>
@@ -44,6 +46,7 @@
 
     private Event? _event;
     private bool _saved;
+    private int? _recordedId;
 
     protected override void OnParametersSet()
     {
@@ -53,6 +56,16 @@
         {
             // Renders the app's Not Found page and returns HTTP 404 instead of an empty page.
             Navigation.NotFound();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Track views for the "Recently viewed" list. Runs after render because session storage needs JS.
+        if (_event is not null && _recordedId != _event.Id)
+        {
+            _recordedId = _event.Id;
+            await Session.RecordViewAsync(_event.Id);
         }
     }
 

@@ -13,6 +13,9 @@ public class RoutingTests(WebApplicationFactory<Program> factory) : IClassFixtur
     [InlineData("/events")]
     [InlineData("/events/1")]
     [InlineData("/events/1/register")]
+    [InlineData("/events/1/attendance")]
+    [InlineData("/attendance")]
+    [InlineData("/my-events")]
     public async Task ValidPages_ReturnOk(string path)
     {
         var response = await _client.GetAsync(path);
@@ -25,6 +28,7 @@ public class RoutingTests(WebApplicationFactory<Program> factory) : IClassFixtur
     [InlineData("/events/0")]
     [InlineData("/events/-5")]
     [InlineData("/events/9999/register")]
+    [InlineData("/events/9999/attendance")]
     [InlineData("/events/abc")]            // not a number
     [InlineData("/events/1/unknown")]      // unknown sub-page
     [InlineData("/no-such-page")]
@@ -36,5 +40,14 @@ public class RoutingTests(WebApplicationFactory<Program> factory) : IClassFixtur
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Contains("Page not found", html);
         Assert.Contains("href=\"events\"", html);
+    }
+
+    [Fact]
+    public async Task HealthCheck_ReportsHealthy()
+    {
+        var response = await _client.GetAsync("/healthz");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Healthy", await response.Content.ReadAsStringAsync());
     }
 }

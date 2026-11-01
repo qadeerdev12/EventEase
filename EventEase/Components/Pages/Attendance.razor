@@ -1,0 +1,123 @@
+@page "/attendance"
+@implements IDisposable
+@inject EventService EventService
+
+<PageTitle>Attendance · EventEase</PageTitle>
+
+<h1>Attendance Tracker</h1>
+<p class="text-muted">Registrations and check-ins across all events. Updates live as attendees register or check in.</p>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="card text-center h-100"><div class="card-body">
+            <div class="fs-3 fw-semibold">@_totals.Registrations</div><div class="small text-muted">Registrations</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center h-100"><div class="card-body">
+            <div class="fs-3 fw-semibold">@_totals.SeatsBooked</div><div class="small text-muted">Seats booked</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center h-100"><div class="card-body">
+            <div class="fs-3 fw-semibold">@_totals.SeatsCheckedIn</div><div class="small text-muted">Checked in</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card text-center h-100"><div class="card-body">
+            <div class="fs-3 fw-semibold">@Percent(_totals.Rate)</div><div class="small text-muted">Attendance rate</div>
+        </div></div>
+    </div>
+</div>
+
+<div class="form-check form-switch mb-3">
+    <input id="only-active" type="checkbox" class="form-check-input" @bind="OnlyWithRegistrations" />
+    <label for="only-active" class="form-check-label">Only show events with registrations</label>
+</div>
+
+<div class="table-responsive position-relative">
+    <table class="table table-hover align-middle">
+        <thead>
+            <tr>
+                <th scope="col">Event</th>
+                <th scope="col">Date</th>
+                <th scope="col" class="text-end">Registrations</th>
+                <th scope="col" class="text-end">Seats booked</th>
+                <th scope="col" class="text-end">Checked in</th>
+                <th scope="col" style="min-width: 10rem">Attendance</th>
+            </tr>
+        </thead>
+        <tbody>
+            @* Virtualized so the table stays fast with thousands of events. *@
+            <Virtualize Items="_rows" Context="row" ItemSize="49" SpacerElement="tr" OverscanCount="10" MaxItemCount="60">
+                <tr @key="row.Event.Id">
+                    <td><a href="@($"events/{row.Event.Id}/attendance")">@row.Event.Name</a></td>
+                    <td class="text-nowrap">@row.Event.Date.ToString("MMM d, yyyy")</td>
+                    <td class="text-end">@row.Registrations</td>
+                    <td class="text-end">@row.SeatsBooked / @row.Capacity</td>
+                    <td class="text-end">@row.SeatsCheckedIn</td>
+                    <td>
+                        @if (row.AttendanceRate is { } rate)
+                        {
+                            <div class="progress" role="progressbar" aria-label="@($"{row.Event.Name} attendance")"
+                                 aria-valuenow="@((int)(rate * 100))" aria-valuemin="0" aria-valuemax="100">
+                                <div class="progress-bar" style="width: @((int)(rate * 100))%">@Percent(rate)</div>
+                            </div>
+                        }
+                        else
+                        {
+                            <span class="text-muted small">No registrations</span>
+                        }
+                    </td>
+                </tr>
+            </Virtualize>
+        </tbody>
+    </table>
+</div>
+
+@if (_rows.Count == 0)
+{
+    <p>No events have registrations yet.</p>
+}
+
+@code {
+    private List<AttendanceSummary> _rows = [];
+    private (int Registrations, int SeatsBooked, int SeatsCheckedIn, double? Rate) _totals;
+    private bool _onlyWithRegistrations = true;
+
+    private bool OnlyWithRegistrations
+    {
+        get => _onlyWithRegistrations;
+        set
+        {
+            _onlyWithRegistrations = value;
+            Load();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Load();
+        EventService.Changed += OnDataChanged;
+    }
+
+    private void Load()
+    {
+        var all = EventService.GetAttendance();
+        _rows = (_onlyWithRegistrations ? all.Where(r => r.Registrations > 0) : all).ToList();
+
+        var booked = all.Sum(r => r.SeatsBooked);
+        var checkedIn = all.Sum(r => r.SeatsCheckedIn);
+        _totals = (all.Sum(r => r.Registrations), booked, checkedIn, booked == 0 ? null : (double)checkedIn / booked);
+    }
+
+    private void OnDataChanged() => InvokeAsync(() =>
+    {
+        Load();
+        StateHasChanged();
+    });
+
+    private static string Percent(double? rate) => rate is { } r ? $"{r:P0}" : "—";
+
+    public void Dispose() => EventService.Changed -= OnDataChanged;
+}

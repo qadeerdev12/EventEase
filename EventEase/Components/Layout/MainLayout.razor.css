@@ -6,6 +6,7 @@
 
 main {
     flex: 1;
+    min-width: 0; /* let wide content (tables) scroll inside main instead of widening the page */
 }
 
 .sidebar {

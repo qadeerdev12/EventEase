@@ -1,65 +1,96 @@
 @page "/events/{Id:int}/register"
+@implements IDisposable
 @inject EventService EventService
+@inject UserSession Session
 @inject NavigationManager Navigation
+@inject ILogger<EventRegistration> Logger
 
 <PageTitle>Register · EventEase</PageTitle>
 
-<nav aria-label="breadcrumb">
-    <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="events">Events</a></li>
-        @if (_event is not null)
-        {
+@if (_event is not null)
+{
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="events">Events</a></li>
             <li class="breadcrumb-item"><a href="@($"events/{_event.Id}")">@_event.Name</a></li>
-        }
-        <li class="breadcrumb-item active" aria-current="page">Register</li>
-    </ol>
-</nav>
+            <li class="breadcrumb-item active" aria-current="page">Register</li>
+        </ol>
+    </nav>
 
-@if (_event is null)
-{
-    @* OnParametersSet calls Navigation.NotFound(), so nothing renders here. *@
-}
-else if (_confirmed)
-{
-    <h1>You're registered!</h1>
-    <div class="alert alert-success">
-        Thanks, @_model.FullName. We've saved @_model.Guests seat(s) for you at
-        <strong>@_event.Name</strong>. A confirmation will be sent to @_model.Email.
-    </div>
-    <a class="btn btn-primary" href="events">Browse more events</a>
-}
-else
-{
-    <h1>Register for @_event.Name</h1>
-    <p class="text-muted">@_event.Date.ToString("f") · @_event.Location · @_event.SeatsLeft seats left</p>
-
-    <EditForm Model="_model" OnValidSubmit="HandleValidSubmit" FormName="registration" class="col-md-6">
-        <DataAnnotationsValidator />
-
-        <div class="mb-3">
-            <label for="fullName" class="form-label">Full name</label>
-            <InputText id="fullName" class="form-control" @bind-Value="_model.FullName" />
-            <ValidationMessage For="() => _model.FullName" />
+    @if (_confirmed is not null)
+    {
+        <h1>You're registered!</h1>
+        <div class="alert alert-success" role="status">
+            Thanks, @_confirmed.FullName. We've reserved @SeatText(_confirmed.Seats) for you at
+            <strong>@_event.Name</strong> on @_event.Date.ToString("f").
+            A confirmation will be sent to @_confirmed.Email.
         </div>
-        <div class="mb-3">
-            <label for="email" class="form-label">Email</label>
-            <InputText id="email" type="email" class="form-control" @bind-Value="_model.Email" />
-            <ValidationMessage For="() => _model.Email" />
-        </div>
-        <div class="mb-3">
-            <label for="guests" class="form-label">Number of guests</label>
-            <InputNumber id="guests" class="form-control" @bind-Value="_model.Guests" />
-            <ValidationMessage For="() => _model.Guests" />
-        </div>
+        <a class="btn btn-primary" href="my-events">View my events</a>
+        <a class="btn btn-link" href="events">Browse more events</a>
+    }
+    else
+    {
+        <h1>Register for @_event.Name</h1>
+        <p class="text-muted">@_event.Date.ToString("f") · @_event.Location · @SeatText(_event.SeatsLeft) left</p>
 
-        @if (_error is not null)
+        @if (_closedReason is not null)
         {
-            <div class="alert alert-danger">@_error</div>
+            <div class="alert alert-warning" role="alert">@_closedReason</div>
+            <a class="btn btn-primary" href="events">Browse other events</a>
         }
+        else
+        {
+            <EditForm EditContext="_editContext" OnValidSubmit="HandleValidSubmit" OnInvalidSubmit="HandleInvalidSubmit"
+                      FormName="registration" class="col-lg-7" novalidate>
+                <DataAnnotationsValidator />
 
-        <button type="submit" class="btn btn-primary">Complete registration</button>
-        <a class="btn btn-link" href="@($"events/{_event.Id}")">Cancel</a>
-    </EditForm>
+                @if (_showSummary)
+                {
+                    <div class="alert alert-danger" role="alert">
+                        <p class="mb-1">Please fix the following:</p>
+                        <ValidationSummary class="mb-0" />
+                    </div>
+                }
+
+                <div class="mb-3">
+                    <label for="fullName" class="form-label">Full name</label>
+                    <InputText id="fullName" class="form-control" autocomplete="name" @bind-Value="_model.FullName" />
+                    <ValidationMessage For="() => _model.FullName" />
+                </div>
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <InputText id="email" type="email" class="form-control" autocomplete="email" @bind-Value="_model.Email" />
+                    <ValidationMessage For="() => _model.Email" />
+                </div>
+                <div class="mb-3">
+                    <label for="phone" class="form-label">Phone <span class="text-muted">(optional)</span></label>
+                    <InputText id="phone" type="tel" class="form-control" autocomplete="tel" @bind-Value="_model.Phone" />
+                    <ValidationMessage For="() => _model.Phone" />
+                </div>
+                <div class="mb-3">
+                    <label for="seats" class="form-label">Number of seats</label>
+                    <InputNumber id="seats" class="form-control" style="max-width: 8rem" min="1" max="@MaxSeats"
+                                 @bind-Value="_model.Seats" ParsingErrorMessage="Please enter a whole number of seats." />
+                    <ValidationMessage For="() => _model.Seats" />
+                </div>
+                <div class="form-check mb-3">
+                    <InputCheckbox id="terms" class="form-check-input" @bind-Value="_model.AcceptTerms" />
+                    <label for="terms" class="form-check-label">I agree to the event terms and cancellation policy.</label>
+                    <ValidationMessage For="() => _model.AcceptTerms" />
+                </div>
+
+                @if (_error is not null)
+                {
+                    <div class="alert alert-danger" role="alert">@_error</div>
+                }
+
+                <button type="submit" class="btn btn-primary" disabled="@_submitting">
+                    @(_submitting ? "Registering…" : "Complete registration")
+                </button>
+                <a class="btn btn-link" href="@($"events/{_event.Id}")">Cancel</a>
+            </EditForm>
+        }
+    }
 }
 
 @code {
@@ -68,8 +99,20 @@ else
 
     private Event? _event;
     private Registration _model = new();
-    private bool _confirmed;
+    private EditContext _editContext = default!;
+    private Registration? _confirmed;
     private string? _error;
+    private string? _closedReason;
+    private bool _submitting;
+    private bool _showSummary;
+
+    private int MaxSeats => Math.Min(Registration.MaxSeats, Math.Max(_event?.SeatsLeft ?? 1, 1));
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(_model);
+        Session.Changed += OnSessionChanged;
+    }
 
     protected override void OnParametersSet()
     {
@@ -77,21 +120,85 @@ else
         if (_event is null)
         {
             Navigation.NotFound();
+            return;
+        }
+
+        _closedReason = _event.Date < DateTime.Now ? "Registration for this event has closed."
+            : _event.SeatsLeft <= 0 ? "This event is sold out."
+            : null;
+        PrefillFromSession();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Session.EnsureLoadedAsync();
         }
     }
 
-    private void HandleValidSubmit()
+    private void OnSessionChanged() => InvokeAsync(() =>
     {
+        PrefillFromSession();
+        StateHasChanged();
+    });
+
+    // Fill in name and email from the session, without overwriting anything already typed.
+    private void PrefillFromSession()
+    {
+        if (!Session.IsIdentified) return;
+        if (string.IsNullOrWhiteSpace(_model.FullName)) _model.FullName = Session.Name ?? "";
+        if (string.IsNullOrWhiteSpace(_model.Email)) _model.Email = Session.Email ?? "";
+    }
+
+    private void HandleInvalidSubmit() => _showSummary = true;
+
+    private async Task HandleValidSubmit()
+    {
+        if (_submitting) return; // ignore double clicks
+        _submitting = true;
+        _showSummary = false;
         _error = null;
-        _model.FullName = _model.FullName.Trim();
-        _model.Email = _model.Email.Trim();
-        if (EventService.Register(Id, _model))
+
+        try
         {
-            _confirmed = true;
+            _model.Normalize();
+            var result = EventService.Register(Id, _model);
+            switch (result.Status)
+            {
+                case RegistrationStatus.Success:
+                    _confirmed = result.Registration;
+                    await Session.IdentifyAsync(_confirmed!.FullName, _confirmed.Email);
+                    break;
+                case RegistrationStatus.AlreadyRegistered:
+                    _error = $"{_model.Email} is already registered for this event. See My events for your booking.";
+                    break;
+                case RegistrationStatus.NotEnoughSeats:
+                    _event = EventService.GetById(Id);
+                    _error = _event is { SeatsLeft: > 0 }
+                        ? $"Only {SeatText(_event.SeatsLeft)} left. Please reduce the number of seats."
+                        : "Sorry, this event just sold out.";
+                    break;
+                case RegistrationStatus.EventEnded:
+                    _closedReason = "Registration for this event has closed.";
+                    break;
+                case RegistrationStatus.EventNotFound:
+                    Navigation.NotFound();
+                    break;
+            }
         }
-        else
+        catch (Exception ex)
         {
-            _error = "Sorry, there aren't enough seats left for that many guests.";
+            Logger.LogError(ex, "Registration failed for event {EventId}", Id);
+            _error = "Something went wrong while saving your registration. Please try again.";
+        }
+        finally
+        {
+            _submitting = false;
         }
     }
+
+    private static string SeatText(int count) => count == 1 ? "1 seat" : $"{count} seats";
+
+    public void Dispose() => Session.Changed -= OnSessionChanged;
 }
