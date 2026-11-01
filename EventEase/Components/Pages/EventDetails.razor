@@ -1,0 +1,47 @@
+@page "/events/{Id:int}"
+@inject EventService EventService
+
+<PageTitle>@(_event?.Name ?? "Event not found") · EventEase</PageTitle>
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="events">Events</a></li>
+        <li class="breadcrumb-item active" aria-current="page">@(_event?.Name ?? "Not found")</li>
+    </ol>
+</nav>
+
+@if (_event is null)
+{
+    <h1>Event not found</h1>
+    <p>We couldn't find an event with ID @Id. <a href="events">Back to all events</a>.</p>
+}
+else
+{
+    <h1>@_event.Name</h1>
+
+    <div class="row g-4">
+        <div class="col-md-5">
+            @* Two-way binding: edits made inside the card flow back to _event and the summary below. *@
+            <EventCard @bind-Event="_event" ShowActions="false" AllowEdit="true" />
+        </div>
+        <div class="col-md-7">
+            <p>@_event.Description</p>
+            <ul class="list-unstyled">
+                <li><strong>When:</strong> @_event.Date.ToString("f")</li>
+                <li><strong>Where:</strong> @_event.Location</li>
+                <li><strong>Seats left:</strong> @_event.SeatsLeft of @_event.Capacity</li>
+            </ul>
+            <a class="btn btn-primary" href="@($"events/{_event.Id}/register")">Register for this event</a>
+            <a class="btn btn-link" href="events">Back to events</a>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private Event? _event;
+
+    protected override void OnParametersSet() => _event = EventService.GetById(Id);
+}

@@ -1,0 +1,62 @@
+@* Reusable card for a single event. Supports two-way binding via @bind-Event. *@
+
+<div class="card event-card h-100 shadow-sm">
+    <div class="card-body">
+        @if (_isEditing)
+        {
+            <div class="mb-2">
+                <label class="form-label small">Event name</label>
+                <input class="form-control form-control-sm" @bind="Event.Name" @bind:event="oninput" @bind:after="NotifyChanged" />
+            </div>
+            <div class="mb-2">
+                <label class="form-label small">Date</label>
+                <input type="datetime-local" class="form-control form-control-sm" @bind="Event.Date" @bind:after="NotifyChanged" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label small">Location</label>
+                <input class="form-control form-control-sm" @bind="Event.Location" @bind:event="oninput" @bind:after="NotifyChanged" />
+            </div>
+            <button class="btn btn-sm btn-success" @onclick="() => _isEditing = false">Done</button>
+        }
+        else
+        {
+            <h5 class="card-title">@Event.Name</h5>
+            <p class="card-text mb-1">
+                📅 @Event.Date.ToString("dddd, MMM d, yyyy 'at' h:mm tt")
+            </p>
+            <p class="card-text text-muted">
+                📍 @Event.Location
+            </p>
+            @if (AllowEdit)
+            {
+                <button class="btn btn-sm btn-outline-secondary" @onclick="() => _isEditing = true">Edit</button>
+            }
+        }
+    </div>
+
+    @if (ShowActions && !_isEditing)
+    {
+        <div class="card-footer bg-transparent d-flex gap-2">
+            <a class="btn btn-sm btn-outline-primary" href="@($"events/{Event.Id}")">Details</a>
+            <a class="btn btn-sm btn-primary" href="@($"events/{Event.Id}/register")">Register</a>
+        </div>
+    }
+</div>
+
+@code {
+    private bool _isEditing;
+
+    [Parameter, EditorRequired]
+    public Event Event { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback<Event> EventChanged { get; set; }
+
+    [Parameter]
+    public bool ShowActions { get; set; } = true;
+
+    [Parameter]
+    public bool AllowEdit { get; set; }
+
+    private Task NotifyChanged() => EventChanged.InvokeAsync(Event);
+}

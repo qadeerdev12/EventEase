@@ -1,0 +1,23 @@
+@page "/"
+@page "/events"
+@inject EventService EventService
+
+<PageTitle>Events · EventEase</PageTitle>
+
+<h1>Upcoming Events</h1>
+<p class="text-muted">Browse our upcoming corporate and social events.</p>
+
+<div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4">
+    @foreach (var ev in _events)
+    {
+        <div class="col" @key="ev.Id">
+            <EventCard Event="ev" />
+        </div>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<Event> _events = [];
+
+    protected override void OnInitialized() => _events = EventService.GetAll();
+}

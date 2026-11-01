@@ -1,0 +1,18 @@
+﻿<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">EventEase</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column">
+        <div class="nav-item px-3">
+            @* Prefix match keeps "Events" highlighted on /events/{id} and /events/{id}/register too. *@
+            <NavLink class="nav-link" href="events" Match="NavLinkMatch.Prefix">
+                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Events
+            </NavLink>
+        </div>
+    </nav>
+</div>
